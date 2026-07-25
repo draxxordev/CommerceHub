@@ -2,605 +2,354 @@
 
 ---
 
-# Constructor
+## Constructor
 
-## `CommerceHub.new()`
+### `CommerceHub.new()`
 
 Creates a new CommerceHub instance.
 
-### Syntax
+Returns:
 
 ```lua
-local CommerceHub = require(path.To.CommerceHub)
-
-local Commerce = CommerceHub.new()
-Commerce:Init()
+CommerceHub
 ```
-
-### Returns
-
-`CommerceHub`
-
-### Notes
-
-- Must be initialized using `:Init()`.
-- Creates a new CommerceHub controller instance.
-- Internal caches, signals, and tracking systems are shared across instances.
 
 ---
 
-# Initialization
+## Initialization
 
-## `:Init()`
+### `:Init()`
 
-Initializes CommerceHub and connects all Marketplace-related systems.
+Initializes CommerceHub.
 
-### Parameters
+Automatically:
 
-None.
+- Connects Marketplace listeners
+- Registers ProcessReceipt
+- Loads pending gifts
+- Cleans player data
+- Registers shutdown cleanup
 
-### Returns
-
-`nil`
-
-### Automatically
-
-- Connects Gamepass purchase listeners.
-- Registers Developer Product receipt processing.
-- Loads pending gifts when players join.
-- Cleans player data when players leave.
-- Registers game shutdown cleanup.
-
-### Best Used For
-
-Call once after creating the CommerceHub instance.
-
-### Example
+Returns
 
 ```lua
-local Commerce = CommerceHub.new()
-
-Commerce:Init()
+nil
 ```
 
 ---
 
 # Product Information
 
+---
+
 ## `:GetProductInfoAsync(assetId)`
 
-Retrieves Marketplace information for an asset.
+Returns Marketplace information.
 
-If information has already been requested, CommerceHub returns the cached result.
+```lua
+Promise<ProductInfo>
+```
 
-### Parameters
+Features
 
-| Name | Type | Description |
-|------|------|-------------|
-| `assetId` | `number` | Marketplace Asset ID. |
-
-### Returns
-
-`Promise<ProductInfo>`
-
-### Best Used For
-
-- Shop interfaces
-- Product descriptions
-- Asset metadata
-- Product thumbnails
-
-### Notes
-
-- Automatically caches results.
-- Cache expires after 5 minutes.
-- Rejects when the asset cannot be fetched.
+- Cached
+- Auto expires after 5 minutes
 
 ---
 
 ## `:GetProductPriceAsync(userId, productId)`
 
-Retrieves the price of a Developer Product.
+Returns the current product price.
 
-### Parameters
+```lua
+Promise<number>
+```
 
-| Name | Type | Description |
-|------|------|-------------|
-| `userId` | `number` | User requesting the price. |
-| `productId` | `number` | Developer Product ID. |
+Features
 
-### Returns
-
-`Promise<number>`
-
-### Best Used For
-
-- Purchase buttons
-- Shop displays
-- Dynamic pricing UI
-
-### Notes
-
-- Uses MarketplaceService product pricing.
-- Caches prices per user and product combination.
-- Cache expires after 5 minutes.
+- Cached per user
+- Auto expires
+- Rate limited
 
 ---
 
 # Ownership
 
+---
+
 ## `:IsGamepassOwnedAsync(userId, gamepassId)`
 
-Checks whether a player owns a Gamepass.
+Checks Gamepass ownership.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `gamepassId` | `number` |
-
-### Returns
-
-`Promise<boolean>`
-
-### Best Used For
-
-- VIP systems
-- Locked areas
-- Cosmetic unlocks
-- Permission checks
-
-### Notes
-
-- Uses Roblox's Gamepass ownership API.
-- Includes rate limiting.
+```lua
+Promise<boolean>
+```
 
 ---
 
 ## `:IsProductOwnedAsync(userId, productId)`
 
-Checks whether a player owns a Developer Product asset.
+Checks whether your game's ProfileStore marks the Developer Product as owned.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `productId` | `number` |
+```lua
+Promise<boolean>
+```
 
-### Returns
-
-`Promise<boolean>`
-
-### Best Used For
-
-- Ownership validation
-- Developer Product checks
-
-### Notes
-
-- Uses Roblox asset ownership lookup.
-- Includes rate limiting.
+> **Note**
+>
+> Roblox Developer Products are consumables and Roblox does **not** provide an ownership API for them.
+> CommerceHub checks your own ProfileStore data instead.
 
 ---
 
-## `:GetUserGamepassesAsync(userId)`
+## `:GetUserGamepassesAsync(userId, gamepassIds)`
 
-Returns every Gamepass owned by a player.
+Checks multiple Gamepasses and returns only the owned ones.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `userId` | `number` |
+```lua
+Promise<{number}>
+```
 
-### Returns
+Example
 
-`Promise<{number}>`
-
-### Best Used For
-
-- Player loading
-- Permission systems
-- Bulk ownership checks
-
-### Notes
-
-- Returns a table containing Gamepass IDs.
-- Uses Roblox asset pagination internally.
-- Includes rate limiting.
+```lua
+Commerce:GetUserGamepassesAsync(
+	player.UserId,
+	{
+		123,
+		456,
+		789
+	}
+)
+```
 
 ---
 
-# Purchases
+# Purchasing
+
+---
 
 ## `:PromptGamepassPurchaseAsync(userId, gamepassId)`
 
-Prompts a Gamepass purchase for a player.
+Shows a Gamepass purchase prompt.
 
-### Parameters
-
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `gamepassId` | `number` |
-
-### Returns
-
-`Promise`
-
-### Automatically
-
-- Validates User ID.
-- Validates Gamepass ID.
-- Checks rate limits.
-- Validates player existence.
-- Creates purchase prompt.
-
-### Best Used For
-
-- Shop buttons
-- Premium upgrades
-- Gamepass unlocks
-
-### Example
+Returns
 
 ```lua
-Commerce:PromptGamepassPurchaseAsync(
-	player.UserId,
-	GAMEPASS_ID
-)
-:andThen(function()
-	print("Prompt opened!")
-end)
+Promise
 ```
+
+Automatically
+
+- validates IDs
+- validates player
+- checks rate limits
 
 ---
 
 ## `:PromptProductPurchaseAsync(userId, productId)`
 
-Prompts a Developer Product purchase.
+Shows a Developer Product purchase prompt.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `productId` | `number` |
+```lua
+Promise
+```
 
-### Returns
+Automatically
 
-`Promise`
-
-### Automatically
-
-- Validates User ID.
-- Validates Product ID.
-- Checks rate limits.
-- Validates player existence.
-- Creates purchase prompt.
-
-### Best Used For
-
-- Currency purchases
-- Consumable items
-- Developer Products
-
-### Notes
-
-- Developer Product rewards must be handled using `:RegisterProductHandler()`.
+- validates IDs
+- validates player
+- checks rate limits
 
 ---
 
 ## `:PurchaseWithSignal(userId, productId)`
 
-Prompts a Developer Product purchase and returns a Signal.
+Alternative to Promises.
 
-### Parameters
-
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `productId` | `number` |
-
-### Returns
-
-`Signal`
-
-### Fires When
-
-The purchase prompt succeeds or fails.
-
-### Best Used For
-
-Developers who prefer Signals over Promises.
-
-### Example
+Returns
 
 ```lua
-local PurchaseSignal = Commerce:PurchaseWithSignal(
-	player.UserId,
-	PRODUCT_ID
-)
-
-PurchaseSignal:Connect(function(success)
-	if success then
-		print("Purchase started!")
-	end
-end)
+Signal
 ```
+
+The Signal fires:
+
+```lua
+true
+```
+
+or
+
+```lua
+false
+```
+
+depending on whether the purchase prompt successfully opened.
 
 ---
 
-# Developer Product Handlers
+# Product Handlers
+
+---
 
 ## `:RegisterProductHandler(productId, callback)`
 
-Registers a function that grants a Developer Product reward.
-
-### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `productId` | `number` | Developer Product ID. |
-| `callback` | `function` | Function that grants the reward. |
-
-### Returns
-
-`nil`
-
-### Callback Parameters
-
-```lua
-callback(player, receiptInfo)
-```
-
-| Name | Type |
-|------|------|
-| `player` | `Player` |
-| `receiptInfo` | `table` |
-
-### Best Used For
-
-- Currency rewards
-- Items
-- Boosts
-- Consumables
-
-### Example
+Registers the reward callback for a Developer Product.
 
 ```lua
 Commerce:RegisterProductHandler(
 	PRODUCT_ID,
 	function(player, receiptInfo)
 
-		print(
-			player.Name,
-			"bought",
-			receiptInfo.ProductId
-		)
-
 	end
 )
 ```
+
+The callback is invoked from `MarketplaceService.ProcessReceipt`.
 
 ---
 
 # Gifting
 
+---
+
 ## `:GiftGamepassAsync(fromUserId, toUserId, gamepassId)`
 
-Creates a Gamepass gift for another player.
+Creates a pending gift.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `fromUserId` | `number` |
-| `toUserId` | `number` |
-| `gamepassId` | `number` |
+```lua
+Promise<Gift>
+```
 
-### Returns
+Automatically
 
-`Promise<Gift>`
-
-### Automatically
-
-- Validates users.
-- Prevents gifting to yourself.
-- Stores gift data using ProfileStore.
-- Creates pending gift data.
-
-### Best Used For
-
-- Friend rewards
-- Events
-- Gift shops
+- validates users
+- prevents gifting yourself
+- stores using ProfileStore
 
 ---
 
 ## `:GetPendingGiftsAsync(userId)`
 
-Retrieves pending gifts from storage.
+Returns pending gifts.
 
-### Parameters
-
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-
-### Returns
-
-`Promise<{Gift}>`
-
-### Best Used For
-
-- Loading player gifts
-- Gift menus
-- Reward systems
+```lua
+Promise<{Gift}>
+```
 
 ---
 
 ## `:ClaimGiftAsync(userId, giftIndex)`
 
-Claims and removes a stored gift.
+Claims a gift.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `giftIndex` | `number` |
-
-### Returns
-
-`Promise<Gift>`
-
-### Automatically
-
-- Loads gift storage.
-- Removes claimed gift.
-- Saves updated data.
+```lua
+Promise<Gift>
+```
 
 ---
 
 ## `:LoadPlayerGifts(userId)`
 
-Loads and fires pending gifts for a player.
+Loads gifts and fires the GiftReceived signal.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-
-### Returns
-
-`Promise`
-
-### Automatically
-
-- Loads stored gifts.
-- Fires `OnGiftReceived()`.
-- Updates gift state.
+```lua
+Promise
+```
 
 ---
 
 # Receipts
 
+---
+
 ## `:ValidatePurchaseReceipt(receiptId, userId, productId)`
 
-Validates a stored Developer Product receipt.
+Validates an internally tracked receipt.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `receiptId` | `string` |
-| `userId` | `number` |
-| `productId` | `number` |
-
-### Returns
-
-`Promise`
-
-### Best Used For
-
-Internal receipt validation.
-
-### Notes
-
-- Checks receipt ownership.
-- Checks product ID.
-- Marks purchase as validated.
+```lua
+Promise
+```
 
 ---
 
 # Purchase Tickets
 
+---
+
 ## `:CreatePurchaseTicket(userId, info)`
 
-Creates a temporary purchase tracking ticket.
+Creates a temporary purchase ticket.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `info` | `any` |
+```lua
+Ticket
+```
 
-### Returns
-
-`Ticket`
-
-### Ticket Format
+Example
 
 ```lua
 {
-	Info = any,
+	Info = ...,
 	Owners = {
 		userId
 	},
-	Job = string
+	Job = "..."
 }
 ```
 
-### Automatically
-
-- Generates unique ticket ID.
-- Tracks ownership.
-- Cleans after 1 hour.
-
-### Best Used For
-
-- Complex purchase flows.
-- Temporary transaction tracking.
+Tickets automatically expire after one hour.
 
 ---
 
 ## `:GetTicket(jobId)`
 
-Retrieves a purchase ticket.
+Returns
 
-### Parameters
-
-| Name | Type |
-|------|------|
-| `jobId` | `string` |
-
-### Returns
-
-`Ticket?`
-
-### Notes
-
-Returns `nil` if the ticket does not exist.
+```lua
+Ticket?
+```
 
 ---
 
-# Events
+# Signals
+
+---
 
 ## `:OnPurchaseComplete()`
 
-Returns the global purchase completion Signal.
+Returns
 
-### Returns
+```lua
+Signal
+```
 
-`Signal`
-
-### Fires When
-
-Any completed purchase event is processed.
-
-### Signal Data
+Data
 
 ```lua
 {
-	UserId = number,
-	AssetId = number,
-	AssetType = string,
-	Timestamp = number
+	UserId,
+	AssetId,
+	AssetType,
+	Timestamp
 }
 ```
 
@@ -608,23 +357,19 @@ Any completed purchase event is processed.
 
 ## `:OnGamepassAcquired()`
 
-Returns the Gamepass acquisition Signal.
+Returns
 
-### Returns
+```lua
+Signal
+```
 
-`Signal`
-
-### Fires When
-
-A player successfully purchases a Gamepass.
-
-### Signal Data
+Data
 
 ```lua
 {
-	UserId = number,
-	GamepassId = number,
-	Timestamp = number
+	UserId,
+	GamepassId,
+	Timestamp
 }
 ```
 
@@ -632,24 +377,20 @@ A player successfully purchases a Gamepass.
 
 ## `:OnProductPurchased()`
 
-Returns the Developer Product purchase Signal.
+Returns
 
-### Returns
+```lua
+Signal
+```
 
-`Signal`
-
-### Fires When
-
-A Developer Product receipt is successfully processed.
-
-### Signal Data
+Data
 
 ```lua
 {
-	UserId = number,
-	ProductId = number,
-	ReceiptId = string,
-	Timestamp = number
+	UserId,
+	ProductId,
+	ReceiptId,
+	Timestamp
 }
 ```
 
@@ -657,321 +398,194 @@ A Developer Product receipt is successfully processed.
 
 ## `:OnGiftReceived()`
 
-Returns the gift received Signal.
+Returns
 
-### Returns
+```lua
+Signal
+```
 
-`Signal`
-
-### Fires When
-
-A player loads pending gifts.
-
-### Signal Data
+Data
 
 ```lua
 {
-	ToUserId = number,
-	FromUserId = number,
-	GamepassId = number,
-	Timestamp = number
+	ToUserId,
+	FromUserId,
+	GamepassId,
+	Timestamp
 }
 ```
 
 ---
 
-# Listeners
+# Listener API
+
+---
 
 ## `:ListenToPurchases(callback)`
 
-Registers a listener for all completed purchases.
+Listens for all purchase events.
 
-### Parameters
-
-| Name | Type |
-|------|------|
-| `callback` | `function` |
-
-### Returns
-
-`Connection`
-
-### Callback Data
+Returns
 
 ```lua
-callback(data)
+Connection
 ```
-
-### Best Used For
-
-- Global purchase tracking
-- Analytics
-- Rewards
 
 ---
 
 ## `:ListenToGamepasses(callback)`
 
-Registers a listener for Gamepass purchases.
-
-### Parameters
-
-| Name | Type |
-|------|------|
-| `callback` | `function` |
-
-### Returns
-
-`Connection`
-
-### Callback Data
+Returns
 
 ```lua
-callback(data)
+Connection
 ```
 
 ---
 
 ## `:ListenToProductPurchases(callback)`
 
-Registers a listener for Developer Product purchases.
-
-### Parameters
-
-| Name | Type |
-|------|------|
-| `callback` | `function` |
-
-### Returns
-
-`Connection`
-
-### Callback Data
+Returns
 
 ```lua
-callback(data)
+Connection
 ```
 
 ---
 
 ## `:ListenToGifts(userId, callback)`
 
-Registers a listener for gifts received by a player.
-
-### Parameters
-
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `callback` | `function` |
-
-### Returns
-
-`Connection`
-
-### Example
+Returns
 
 ```lua
-Commerce:ListenToGifts(
-	player.UserId,
-	function(gift)
-
-		print(
-			"Received gift:",
-			gift.GamepassId
-		)
-
-	end
-)
+Connection
 ```
 
 ---
 
 # Callback Helpers
 
-## `:PromptGamepassPurchaseWithCallback(userId, gamepassId, callback)`
+---
 
-Callback-based alternative to `PromptGamepassPurchaseAsync()`.
+## `:PromptGamepassPurchaseWithCallback(...)`
 
-### Parameters
-
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `gamepassId` | `number` |
-| `callback` | `function` |
-
-### Returns
-
-`Maid`
-
-### Callback Format
+Callback-based alternative.
 
 ```lua
 callback(
 	success,
 	userId,
 	gamepassId,
-	error?
+	error
 )
 ```
 
-### Best Used For
+Returns
 
-Projects that prefer callbacks over Promise chaining.
+```lua
+Maid
+```
 
 ---
 
-## `:PromptProductPurchaseWithCallback(userId, productId, callback)`
+## `:PromptProductPurchaseWithCallback(...)`
 
-Callback-based alternative to `PromptProductPurchaseAsync()`.
+Callback-based alternative.
 
-### Parameters
+Returns
 
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-| `productId` | `number` |
-| `callback` | `function` |
+```lua
+Promise
+```
 
-### Returns
-
-`Promise`
-
-### Callback Format
+Callback
 
 ```lua
 callback(
 	success,
 	userId,
 	productId,
-	error?
+	error
 )
 ```
 
 ---
 
-# Listener Removal
-
-## `:UnlistenToPurchases(callback)`
-
-Removes a purchase listener.
-
-### Parameters
-
-| Name | Type |
-|------|------|
-| `callback` | `function` |
-
-### Returns
-
-`nil`
-
----
-
-## `:UnlistenToGamepasses(callback)`
-
-Removes a Gamepass listener.
-
-### Parameters
-
-| Name | Type |
-|------|------|
-| `callback` | `function` |
-
-### Returns
-
-`nil`
-
----
-
-## `:UnlistenToProductPurchases(callback)`
-
-Removes a Developer Product listener.
-
-### Parameters
-
-| Name | Type |
-|------|------|
-| `callback` | `function` |
-
-### Returns
-
-`nil`
-
----
-
 # Cleanup
+
+---
 
 ## `:Cleanup(userId)`
 
-Removes temporary player-specific CommerceHub data.
-
-### Parameters
-
-| Name | Type |
-|------|------|
-| `userId` | `number` |
-
-### Automatically Removes
+Removes
 
 - Purchase tickets
-- Rate limit data
-- Temporary player state
-
-### Best Used For
-
-Player removal cleanup.
+- Rate limits
 
 ---
 
 ## `:ClearCache()`
 
-Clears all Marketplace caches.
+Clears
 
-### Automatically Removes
-
-- Product information cache
+- Product cache
 - Price cache
-
-### Best Used For
-
-- Debugging
-- Development
-- Forced refreshes
 
 ---
 
 ## `:ClearAllListeners()`
 
-Removes all registered callback listeners.
+Removes all callback listeners.
 
-### Automatically Removes
-
-- Purchase listeners
-- Gamepass listeners
-- Product listeners
-
-### Notes
-
-Use carefully. Existing Signal connections are not affected.
+Does **not** disconnect Signal connections.
 
 ---
 
 ## `:Destroy()`
 
-Destroys the CommerceHub instance.
+Destroys CommerceHub.
 
-### Automatically
+Automatically
 
-- Clears internal caches.
-- Removes tracked tickets.
-- Clears listeners.
-- Clears pending data.
-- Destroys Signals.
+- clears caches
+- clears tickets
+- clears listeners
+- clears pending data
+- destroys signals
 
-### Notes
+---
 
-Only call when CommerceHub is no longer required.
+# Notes
+
+## Promises
+
+Functions ending in `Async` return Promises.
+
+Calling them **does not yield** your thread.
+
+Instead, the asynchronous work happens internally.
+
+Example
+
+```lua
+Commerce:GetProductInfoAsync(id)
+	:andThen(function(info)
+
+	end)
+```
+
+---
+
+## Developer Products
+
+Developer Products are consumables.
+
+CommerceHub stores ownership information using your own ProfileStore rather than relying on Roblox ownership APIs.
+
+---
+
+## Rate Limiting
+
+CommerceHub automatically rate limits purchase-related requests to help prevent accidental spam and abuse.
 
 ---
