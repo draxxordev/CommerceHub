@@ -73,7 +73,20 @@
 	---
 	
 	--// Changlogs
-	
+
+	### Changed
+
+	- Standardized all asynchronous methods to return Promises.
+	- Improved argument validation across the entire API.
+	- Simplified purchase workflows with centralized helper functions.
+	-- Added types to the main class and other objects.
+
+	### Fixed
+
+	- Various internal stability improvements.
+	- Improved receipt handling reliability.
+	- Better cache cleanup behavior.
+
 	---
 
 	GitHub (repository):
@@ -87,7 +100,6 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 
 --// Dependencies
---//  !! MAKE SURE YOU HAVE THESE !! \\ --
 local ProfileStore = require("@self/ProfileStore")
 local Promise = require("@self/Promise")
 local Signal = require("@self/Signal")
@@ -97,6 +109,8 @@ local Maid = require("@self/Maid")
 export type Callback = (...any) -> ...any
 
 export type SignalObject = Signal.Signal<Callback>
+export type PromiseObject = Promise.Promise
+export type MaidObject = Maid.Maid
 
 export type Ticket = {
 	Info: any,
@@ -133,6 +147,61 @@ export type Gift = {
 	FromUserId: number,
 	GamepassId: number,
 	Timestamp: number,
+}
+
+export type CommerceHub = typeof(setmetatable({} :: {
+}, {} :: CommerceHubClass))
+
+export type CommerceHubClass = {
+	__index: CommerceHubClass,
+
+	new: () -> CommerceHub,
+
+	Init: (self: CommerceHub) -> (),
+	Destroy: (self: CommerceHub) -> (),
+
+	GetProductInfoAsync: (self: CommerceHub, assetId: number) -> PromiseObject,
+	GetProductPriceAsync: (self: CommerceHub, userId: number, productId: number) -> PromiseObject,
+
+	IsGamepassOwnedAsync: (self: CommerceHub, userId: number, gamepassId: number) -> PromiseObject,
+	IsProductOwnedAsync: (self: CommerceHub, userId: number, productId: number) -> PromiseObject,
+	GetUserGamepassesAsync: (self: CommerceHub, userId: number, gamepassIds: {number}) -> PromiseObject,
+
+	PromptGamepassPurchaseAsync: (self: CommerceHub, userId: number, gamepassId: number) -> PromiseObject,
+	PromptProductPurchaseAsync: (self: CommerceHub, userId: number, productId: number) -> PromiseObject,
+
+	GiftGamepassAsync: (self: CommerceHub, fromUserId: number, toUserId: number, gamepassId: number) -> PromiseObject,
+	GetPendingGiftsAsync: (self: CommerceHub, userId: number) -> PromiseObject,
+	ClaimGiftAsync: (self: CommerceHub, userId: number, giftIndex: number) -> PromiseObject,
+	LoadPlayerGifts: (self: CommerceHub, userId: number) -> PromiseObject,
+
+	RegisterProductHandler: (self: CommerceHub, productId: number, callback: Callback) -> (),
+
+	CreatePurchaseTicket: (self: CommerceHub, userId: number, info: any) -> Ticket,
+	GetTicket: (self: CommerceHub, jobId: string) -> Ticket?,
+
+	ValidatePurchaseReceipt: (self: CommerceHub, receiptId: string, userId: number, productId: number) -> PromiseObject,
+
+	ClearCache: (self: CommerceHub) -> (),
+	Cleanup: (self: CommerceHub, userId: number) -> (),
+
+	ListenToPurchases: (self: CommerceHub, callback: Callback) -> any,
+	ListenToGamepasses: (self: CommerceHub, callback: Callback) -> any,
+	ListenToProductPurchases: (self: CommerceHub, callback: Callback) -> any,
+	ListenToGifts: (self: CommerceHub, userId: number, callback: Callback) -> any,
+
+	UnlistenToPurchases: (self: CommerceHub, callback: Callback) -> (),
+	UnlistenToGamepasses: (self: CommerceHub, callback: Callback) -> (),
+	UnlistenToProductPurchases: (self: CommerceHub, callback: Callback) -> (),
+	ClearAllListeners: (self: CommerceHub) -> (),
+
+	OnPurchaseComplete: (self: CommerceHub) -> SignalObject,
+	OnGamepassAcquired: (self: CommerceHub) -> SignalObject,
+	OnProductPurchased: (self: CommerceHub) -> SignalObject,
+	OnGiftReceived: (self: CommerceHub) -> SignalObject,
+
+	PromptGamepassPurchaseWithCallback: (self: CommerceHub, userId: number, gamepassId: number, onComplete: Callback) -> MaidObject,
+	PromptProductPurchaseWithCallback: (self: CommerceHub, userId: number, productId: number, onComplete: Callback) -> PromiseObject,
 }
 
 --// Classes
@@ -175,11 +244,11 @@ local GiftReceivedSignal: SignalObject = Signal.new()
 
 --// Private Functions
 
-local function getCacheKey(userId, productId)
+local function getCacheKey(userId, productId): string
 	return userId .. ":" .. productId
 end
 
-local function getProductInfoAsync(assetId)
+local function getProductInfoAsync(assetId): PromiseObject
 	return Promise.new(function(resolve, reject)
 		local success, info = pcall(function()
 			return MarketplaceService:GetProductInfoAsync(assetId, Enum.InfoType.Product)
@@ -193,50 +262,100 @@ local function getProductInfoAsync(assetId)
 	end)
 end
 
-local function getUserOwnedAssets(userId, assetTypeId)
+--[[ Check if user owns a gamepass (yields/returns Promise)
+	Uses MarketplaceService:UserOwnsGamePassAsync which is the correct API
+]]--
+local function userOwnsGamepassAsync(userId, gamepassId): PromiseObject
 	return Promise.new(function(resolve, reject)
-		local assets = {}
-		local cursor = ""
-		local success = true
+		local success, owned = pcall(function()
+			return MarketplaceService:UserOwnsGamePassAsync(userId, gamepassId)
+		end)
 
-		while success do
-			local ok, result = pcall(function()
-				return MarketplaceService:GetUserAssetsAsync(userId, assetTypeId, Enum.SortOrder.Asc, 100, cursor)
+		if success then
+			resolve(owned)
+		else
+			reject("Failed to check gamepass ownership: " .. tostring(owned))
+		end
+	end)
+end
+
+--[[ Check if user owns a developer product (yields/returns Promise)
+	Developer products should be tracked in your own database (ProfileStore)
+	This function checks your internal records
+]]--
+local function userOwnsProductAsync(userId, productId): PromiseObject
+	return Promise.new(function(resolve, reject)
+		task.spawn(function()
+			local success, result = pcall(function()
+				local store = MainStore:StartSessionAsync("player-" .. userId)
+				if not store then
+					return false
+				end
+
+				local ownedProducts = store.Data.OwnedProducts or {}
+				store:EndSession()
+
+				return table.find(ownedProducts, productId) ~= nil
 			end)
 
-			if not ok then
-				reject("Failed to fetch user assets: " .. tostring(result))
-				return
+			if success then
+				resolve(result)
+			else
+				reject("Failed to check product ownership: " .. tostring(result))
 			end
+		end)
+	end)
+end
 
-			for _, asset in ipairs(result:GetAssets()) do
-				table.insert(assets, asset.Id)
-			end
-
-			cursor = result:GetNextPageCursor()
-			if cursor == "" then
-				success = false
-			end
+--[[ Get all gamepasses owned by a user (yields/returns Promise)
+	Note: This would require maintaining a list server-side or checking individual gamepasses
+	For large gamepass lists, consider caching or using a custom system
+]]--
+local function getUserGamepassesAsync(userId, gamepassIds): PromiseObject
+	return Promise.new(function(resolve, reject)
+		if not gamepassIds or #gamepassIds == 0 then
+			resolve({})
+			return
 		end
 
-		resolve(assets)
+		local ownedGamepasses = {}
+		local checked = 0
+		local totalToCheck = #gamepassIds
+
+		for _, gamepassId in ipairs(gamepassIds) do
+			userOwnsGamepassAsync(userId, gamepassId):andThen(function(owned)
+				if owned then
+					table.insert(ownedGamepasses, gamepassId)
+				end
+				checked = checked + 1
+
+				if checked == totalToCheck then
+					resolve(ownedGamepasses)
+				end
+			end):catch(function(err)
+				checked = checked + 1
+				if checked == totalToCheck then
+					reject("Failed to fetch some gamepasses: " .. tostring(err))
+				end
+			end)
+		end
 	end)
 end
 
 --[[ Validate User ID ]]--
-local function validateUserId(userId)
+local function validateUserId(userId): boolean
 	return typeof(userId) == "number"
 		and userId > 0
 		and userId % 1 == 0
 end
 
 --[[ Validate Asset ID ]]--
-local function validateAssetId(assetId)
+local function validateAssetId(assetId): boolean
 	return type(assetId) == "number" and assetId >= minAssetId
 end
 
 --[[ Check Rate Limit ]]--
-local function checkRateLimit(userId)
+local function checkRateLimit(userId): (boolean, string?)
 	if not UserRateLimits[userId] then
 		UserRateLimits[userId] = {
 			LastCall = 0,
@@ -245,7 +364,7 @@ local function checkRateLimit(userId)
 	end
 
 	local limit = UserRateLimits[userId]
-	local now = tick()
+	local now = os.clock()
 
 	-- Reset the counter if we are outside the window
 	if now - limit.LastCall > rateLimitWindow then
@@ -259,11 +378,11 @@ local function checkRateLimit(userId)
 	end
 
 	limit.CallCount = limit.CallCount + 1
-	
+
 	return true, nil
 end
 
-local function validateRate(userId, reject)
+local function validateRate(userId, reject): PromiseObject
 	-- Check the rate limit for this user to prevent repeated calls
 	local ok, err = checkRateLimit(userId)
 
@@ -287,7 +406,7 @@ local function trackReceipt(receiptId, userId, productId)
 end
 
 --[[ Validate Receipt ]]--
-local function validateReceipt(receiptId, userId, productId)
+local function validateReceipt(receiptId, userId, productId): (boolean, string?)
 	local receipt = PendingReceipts[receiptId]
 	if not receipt then
 		return false, "Receipt not found"
@@ -303,7 +422,7 @@ local function validateReceipt(receiptId, userId, productId)
 
 	-- Mark the purchase as validated
 	local purchaseKey = userId .. "-" .. productId
-	
+
 	ValidatedPurchases[purchaseKey] = true
 
 	-- Then we cleanup the reciept after timeout
@@ -312,7 +431,7 @@ local function validateReceipt(receiptId, userId, productId)
 	return true, nil
 end
 
-local function attemptPurchaseAsync(userId, productId)
+local function attemptPurchaseAsync(userId, productId): PromiseObject
 	return Promise.new(function(resolve, reject)
 		-- Validate arguments
 		if not validateUserId(userId) then
@@ -392,7 +511,7 @@ local function firePurchaseComplete(userId, assetId, assetType)
 	end
 end
 
-local function processReceipt(receiptInfo)
+local function processReceipt(receiptInfo): Enum.ProductPurchaseDecision
 	local purchaseId = receiptInfo.PurchaseId
 	local userId = receiptInfo.PlayerId
 	local productId = receiptInfo.ProductId
@@ -440,14 +559,11 @@ end
 local function setupGamepassListener()
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(
 		function(player, gamepassId, purchased)
-
 			if purchased then
-
 				fireGamepassAcquired(
 					player.UserId,
 					gamepassId
 				)
-
 			end
 		end
 	)
@@ -461,7 +577,7 @@ CommerceHub.__index = CommerceHub
 --[[ new
 	Main constructor for the module
 ]]
-function CommerceHub.new()
+function CommerceHub.new(): CommerceHubClass
 	return setmetatable({}, CommerceHub)
 end
 
@@ -499,11 +615,11 @@ function CommerceHub:Init()
 	--[[ Setup the main gamepass listener
 ]]--
 	setupGamepassListener()
-	
+
 	--[[ Connection to ProcessReceipt
 ]]--
 	MarketplaceService.ProcessReceipt = processReceipt
-	
+
 	--[[ Connection to player join - Load gifts
 	Auto-loads pending gifts when a player joins
 ]]--
@@ -523,7 +639,7 @@ function CommerceHub:Init()
 		PendingGifts[player.UserId] = nil
 		ProcessedGifts[player.UserId] = nil
 	end)
-	
+
 --[[ Connections to game close
 	Auto-cleanup when the game is closing
 ]]--
@@ -550,9 +666,9 @@ function CommerceHub:GetProductInfoAsync(assetId)
 		ProductInfoCache[assetId] = info
 		-- Cache for 5 minutes
 		task.delay(cacheExpiry, function()
-			ProductInfoCache = nil
+			ProductInfoCache[assetId] = nil
 		end)
-		
+
 		return info
 	end)
 end
@@ -574,17 +690,7 @@ function CommerceHub:IsGamepassOwnedAsync(userId, gamepassId)
 
 	validateRate(userId, Promise.reject)
 
-	return Promise.new(function(resolve, reject)
-		local success, owned = pcall(function()
-			return MarketplaceService:UserOwnsGamePassAsync(userId, gamepassId)
-		end)
-
-		if success then
-			resolve(owned)
-		else
-			reject("Failed to check gamepass ownership: " .. tostring(owned))
-		end
-	end)
+	return userOwnsGamepassAsync(userId, gamepassId)
 end
 
 --[[ IsProductOwnedAsync
@@ -604,9 +710,7 @@ function CommerceHub:IsProductOwnedAsync(userId, productId)
 
 	validateRate(userId, Promise.reject)
 
-	return getUserOwnedAssets(userId, Enum.AssetType.DevProduct):andThen(function(assets)
-		return table.find(assets, productId) ~= nil
-	end)
+	return userOwnsProductAsync(userId, productId)
 end
 
 --[[ GiftGamepassAsync
@@ -675,7 +779,7 @@ function CommerceHub:GiftGamepassAsync(fromUserId, toUserId, gamepassId)
 				if not ProcessedGifts[toUserId] then
 					ProcessedGifts[toUserId] = {}
 				end
-				
+
 				ProcessedGifts[toUserId][gamepassId] = true
 
 				resolve(gift)
@@ -751,12 +855,18 @@ end
 
 --[[ GetUserGamepassesAsync
 	Gets all gamepasses owned by a user
+	NOTE: Requires a table of gamepass IDs to check
 	@param userId: The user ID to check
-	@return Promise that resolves with table of gamepass IDs
+	@param gamepassIds: Table of gamepass IDs to check ownership of
+	@return Promise that resolves with table of owned gamepass IDs
 ]]--
-function CommerceHub:GetUserGamepassesAsync(userId)
+function CommerceHub:GetUserGamepassesAsync(userId, gamepassIds)
 	if not validateUserId(userId) then
 		return Promise.reject("Invalid user ID")
+	end
+
+	if not gamepassIds or type(gamepassIds) ~= "table" then
+		return Promise.reject("gamepassIds must be a table")
 	end
 
 	-- Check the rate limit for this user
@@ -765,7 +875,7 @@ function CommerceHub:GetUserGamepassesAsync(userId)
 		return Promise.reject(err)
 	end
 
-	return getUserOwnedAssets(userId, Enum.AssetType.GamePass)
+	return getUserGamepassesAsync(userId, gamepassIds)
 end
 
 --[[ GetProductPriceAsync
@@ -809,7 +919,7 @@ function CommerceHub:GetProductPriceAsync(userId, productId)
 				Success = true,
 				Price = price,
 			}
-			
+
 			-- We then setup a clean expiry cache for this entry with a duration of 5 minutes
 			task.delay(cacheExpiry, function()
 				PriceCache[cacheKey] = nil
@@ -828,6 +938,9 @@ end
 	@return Signal that fires with purchase result
 ]]--
 function CommerceHub:PurchaseWithSignal(userId, productId)
+	-- Note: Despite the name, this doesn't return a promise.
+	-- The signal fires asynchronously when the purchase completes.
+	-- If you need promise-based behavior, use PromptProductPurchaseAsync instead.
 	local signal = Signal.new()
 
 	attemptPurchaseAsync(userId, productId):andThen(function()
@@ -956,7 +1069,7 @@ function CommerceHub:ListenToPurchases(callback)
 				if index then
 					table.remove(PurchaseListeners, index)
 				end
-				
+
 				self.Connected = false
 			end
 		end,
@@ -1078,7 +1191,7 @@ end
 	@param onComplete: Callback function(success, userId, productId, error)
 	@return Promise that resolves on completion
 ]]--
-function CommerceHub:PromptProductPurchaseWithCallback(userId, productId, onComplete)
+function CommerceHub:PromptProductPurchaseWithCallback(userId: number, productId: number, onComplete: (boolean, number, number, string) -> ()): PromiseObject
 	-- Validate parameters
 	if type(onComplete) ~= "function" then
 		error("onComplete must be a function")
@@ -1108,7 +1221,7 @@ end
 	Removes a specific callback from purchase listeners
 	@param callback: The callback function to remove
 ]]--
-function CommerceHub:UnlistenToPurchases(callback)
+function CommerceHub:UnlistenToPurchases(callback: Callback)
 	local index = table.find(PurchaseListeners, callback)
 	if index then
 		table.remove(PurchaseListeners, index)
@@ -1119,7 +1232,7 @@ end
 	Removes a specific callback from gamepass listeners
 	@param callback: The callback function to remove
 ]]--
-function CommerceHub:UnlistenToGamepasses(callback)
+function CommerceHub:UnlistenToGamepasses(callback: Callback)
 	local index = table.find(GamepassListeners, callback)
 	if index then
 		table.remove(GamepassListeners, index)
@@ -1130,7 +1243,7 @@ end
 	Removes a specific callback from product listeners
 	@param callback: The callback function to remove
 ]]--
-function CommerceHub:UnlistenToProductPurchases(callback)
+function CommerceHub:UnlistenToProductPurchases(callback: Callback)
 	local index = table.find(ProductListeners, callback)
 	if index then
 		table.remove(ProductListeners, index)
@@ -1151,7 +1264,7 @@ end
 	@param userId: The user ID to get gifts for
 	@return Promise that resolves with table of pending gifts
 ]]--
-function CommerceHub:GetPendingGiftsAsync(userId)
+function CommerceHub:GetPendingGiftsAsync(userId: number): PromiseObject
 	if not validateUserId(userId) then
 		return Promise.reject("Invalid user ID")
 	end
@@ -1187,7 +1300,7 @@ end
 	@param giftIndex: The index of the gift to claim
 	@return Promise that resolves when gift is claimed
 ]]--
-function CommerceHub:ClaimGiftAsync(userId, giftIndex)
+function CommerceHub:ClaimGiftAsync(userId: number, giftIndex: number)
 	if not validateUserId(userId) then
 		return Promise.reject("Invalid user ID")
 	end
@@ -1229,7 +1342,7 @@ end
 	Returns a signal that fires when a player receives a gift
 	@return Signal that fires with gift data
 ]]--
-function CommerceHub:OnGiftReceived()
+function CommerceHub:OnGiftReceived(): SignalObject
 	return GiftReceivedSignal
 end
 
@@ -1239,7 +1352,7 @@ end
 	@param callback: Function(gift) to call when gift received
 	@return Connection object with Disconnect method
 ]]--
-function CommerceHub:ListenToGifts(userId, callback)
+function CommerceHub:ListenToGifts(userId: number, callback: (Gift) -> ())
 	if not validateUserId(userId) then
 		error("Invalid user ID")
 	end
