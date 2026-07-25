@@ -48,7 +48,7 @@ Instead of interacting directly with `MarketplaceService` every time, CommerceHu
 
 ---
 
-Built with love an passion for other Roblox developers.
+Built with love and passion for other Roblox developers.
 ❤️
 
 By @Draxxor
