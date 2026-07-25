@@ -315,7 +315,7 @@ local function attemptPurchaseAsync(userId, productId, quote)
 
 		validateRate(userId, reject)
 
-		local player = Players:FindFirstChild(tostring(userId))
+		local player = Players:GetPlayerByUserId(userId)
 		if not player then
 			reject("Player not found")
 			return
@@ -636,7 +636,7 @@ function CommerceHub:PromptGamepassPurchaseAsync(userId, gamepassId)
 	validateRate(userId, Promise.reject)
 
 	return Promise.new(function(resolve, reject)
-		local player = Players:FindFirstChild(tostring(userId))
+		local player = Players:GetPlayerByUserId(userId)
 		if not player then
 			reject("Player not found")
 			return
@@ -697,7 +697,7 @@ function CommerceHub:GetProductPriceAsync(userId, productId)
 	end
 
 	return Promise.new(function(resolve, reject)
-		local player = Players:FindFirstChild(tostring(userId))
+		local player = Players:GetPlayerByUserId(userId)
 		if not player then
 			reject("Player not found")
 			return
