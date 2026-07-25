@@ -78,7 +78,6 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 
 --// Dependencies
--- ==// ** (MAKE SURE TO PLACE THESE UNDER THE SCRIPT) ** \\== --
 local ProfileStore = require("@self/ProfileStore")
 local Promise = require("@self/Promise")
 local Signal = require("@self/Signal")
@@ -153,8 +152,6 @@ local ProcessedGifts: { [number]: { [number]: boolean } } = {}
 local cacheExpiry = 300 -- 5 minutes
 local rateLimitCalls = 10 -- max calls per window
 local rateLimitWindow = 5 -- seconds
-local minUserId = 1 -- minimum value for a 32-bit signed binary integer (-2^31)
-local maxUserId = 2147483647 -- max positive value for a 32-bit signed binary integer (8th Mersenne prime)
 local minAssetId = 1
 local receiptExpiry = 600 -- 10 minutes
 
@@ -216,7 +213,9 @@ end
 
 --[[ Validate User ID ]]--
 local function validateUserId(userId)
-	return type(userId) == "number" and userId >= minUserId and userId <= maxUserId
+	return typeof(userId) == "number"
+		and userId > 0
+		and userId % 1 == 0
 end
 
 --[[ Validate Asset ID ]]--
@@ -578,7 +577,7 @@ function CommerceHub:GiftGamepassAsync(fromUserId, toUserId, gamepassId)
 		-- Save to ProfileStore asynchronously
 		task.spawn(function()
 			local success, result = pcall(function()
-				local store = MainStore:LoadProfileAsync("gifts-" .. toUserId)
+				local store = MainStore:StartSessionAsync("gifts-" .. toUserId)
 				if not store then
 					reject("Failed to load store")
 					return
@@ -589,7 +588,7 @@ function CommerceHub:GiftGamepassAsync(fromUserId, toUserId, gamepassId)
 				end
 
 				table.insert(store.Data.Gifts, gift)
-				store:Release()
+				store:EndSession()
 			end)
 
 			if not success then
@@ -1061,13 +1060,13 @@ function CommerceHub:GetPendingGiftsAsync(userId)
 
 		task.spawn(function()
 			local success, result = pcall(function()
-				local store = MainStore:LoadProfileAsync("gifts-" .. userId)
+				local store = MainStore:StartSessionAsync("gifts-" .. userId)
 				if not store then
 					return {}
 				end
 
 				local gifts = store.Data.Gifts or {}
-				store:Release()
+				store:EndSession()
 				return gifts
 			end)
 
@@ -1098,21 +1097,21 @@ function CommerceHub:ClaimGiftAsync(userId, giftIndex)
 	return Promise.new(function(resolve, reject)
 		task.spawn(function()
 			local success, result = pcall(function()
-				local store = MainStore:LoadProfileAsync("gifts-" .. userId)
+				local store = MainStore:StartSessionAsync("gifts-" .. userId)
 				if not store then
 					reject("Failed to load store")
 					return
 				end
 
 				if not store.Data.Gifts or not store.Data.Gifts[giftIndex] then
-					store:Release()
+					store:EndSession()
 					reject("Gift not found")
 					return
 				end
 
 				local claimedGift = store.Data.Gifts[giftIndex]
 				table.remove(store.Data.Gifts, giftIndex)
-				store:Release()
+				store:EndSession()
 
 				resolve(claimedGift)
 			end)
