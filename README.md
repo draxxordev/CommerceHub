@@ -2,7 +2,7 @@
 
 A wrapper around Roblox's Default `MarketplaceService`, designed to simplify gameplay purchase systems while providing a clean, extensible API.
 
-CommerceHub goes beyond simple purchase prompts by including built-in validation, caching, asynchronous workflows, signals, rate limiting, and lifecycle management, making it suitable for both small projects and larger experiences.
+CommerceHub goes past simple purchase prompts by including built-in validation, caching, asynchronous workflows, signals, rate limiting, and lifecycle management, making it suitable for both small projects and larger games.
 
 ## Features
 
@@ -37,7 +37,7 @@ Commerce:PromptGamepassPurchaseAsync(player.UserId, GAMEPASS_ID)
 
 ## Why CommerceHub?
 
-Instead of interacting directly with `MarketplaceService` every time, CommerceHub provides a centralized API that handles common concerns automatically, allowing you to focus on building your game rather than rewriting commerce logic.
+Instead of interacting directly with `MarketplaceService` every time, CommerceHub provides a centralized API that handles common concerns automatically, allowing you to focus on building your game rather than rewriting gamepass logic.
 
 ## Goals
 
@@ -49,5 +49,6 @@ Instead of interacting directly with `MarketplaceService` every time, CommerceHu
 ---
 
 Built with love an passion for other Roblox developers.
+❤️
 
 By @Draxxor
