@@ -50,7 +50,13 @@ Instead of interacting directly with `MarketplaceService` every time, CommerceHu
 
 ---
 
-Built with love and passion for other Roblox developers.
+# License
+
+MIT
+
+---
+
+# Built with love and passion for other Roblox developers.
 ❤️
 
 By @Draxxor
