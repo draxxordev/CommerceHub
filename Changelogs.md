@@ -32,5 +32,6 @@
 - Various internal stability improvements.
 - Improved receipt handling reliability.
 - Better cache cleanup behavior.
+- Improved syntax & data type practices.
 
 ---
