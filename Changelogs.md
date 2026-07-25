@@ -26,12 +26,12 @@
 - Standardized all asynchronous methods to return Promises.
 - Improved argument validation across the entire API.
 - Simplified purchase workflows with centralized helper functions.
+- Added types to the main class and other objects.
 
 ### Fixed
 
 - Various internal stability improvements.
 - Improved receipt handling reliability.
 - Better cache cleanup behavior.
-- Improved syntax & data type practices.
 
 ---
