@@ -73,20 +73,20 @@
 	---
 	
 	--// Changlogs
-
+	
 	### Changed
 
 	- Standardized all asynchronous methods to return Promises.
 	- Improved argument validation across the entire API.
 	- Simplified purchase workflows with centralized helper functions.
-	-- Added types to the main class and other objects.
+	- Added types to the main class and other objects.
 
 	### Fixed
 
 	- Various internal stability improvements.
 	- Improved receipt handling reliability.
 	- Better cache cleanup behavior.
-
+	
 	---
 
 	GitHub (repository):
@@ -244,11 +244,11 @@ local GiftReceivedSignal: SignalObject = Signal.new()
 
 --// Private Functions
 
-local function getCacheKey(userId, productId): string
+local function getCacheKey(userId: number, productId: number): string
 	return userId .. ":" .. productId
 end
 
-local function getProductInfoAsync(assetId): PromiseObject
+local function getProductInfoAsync(assetId: number): PromiseObject
 	return Promise.new(function(resolve, reject)
 		local success, info = pcall(function()
 			return MarketplaceService:GetProductInfoAsync(assetId, Enum.InfoType.Product)
@@ -265,7 +265,7 @@ end
 --[[ Check if user owns a gamepass (yields/returns Promise)
 	Uses MarketplaceService:UserOwnsGamePassAsync which is the correct API
 ]]--
-local function userOwnsGamepassAsync(userId, gamepassId): PromiseObject
+local function userOwnsGamepassAsync(userId: number, gamepassId: number): PromiseObject
 	return Promise.new(function(resolve, reject)
 		local success, owned = pcall(function()
 			return MarketplaceService:UserOwnsGamePassAsync(userId, gamepassId)
@@ -283,7 +283,7 @@ end
 	Developer products should be tracked in your own database (ProfileStore)
 	This function checks your internal records
 ]]--
-local function userOwnsProductAsync(userId, productId): PromiseObject
+local function userOwnsProductAsync(userId: number, productId: number): PromiseObject
 	return Promise.new(function(resolve, reject)
 		task.spawn(function()
 			local success, result = pcall(function()
@@ -311,7 +311,7 @@ end
 	Note: This would require maintaining a list server-side or checking individual gamepasses
 	For large gamepass lists, consider caching or using a custom system
 ]]--
-local function getUserGamepassesAsync(userId, gamepassIds): PromiseObject
+local function getUserGamepassesAsync(userId: number, gamepassIds: { number }): PromiseObject
 	return Promise.new(function(resolve, reject)
 		if not gamepassIds or #gamepassIds == 0 then
 			resolve({})
@@ -343,14 +343,14 @@ local function getUserGamepassesAsync(userId, gamepassIds): PromiseObject
 end
 
 --[[ Validate User ID ]]--
-local function validateUserId(userId): boolean
+local function validateUserId(userId: number): boolean
 	return typeof(userId) == "number"
 		and userId > 0
 		and userId % 1 == 0
 end
 
 --[[ Validate Asset ID ]]--
-local function validateAssetId(assetId): boolean
+local function validateAssetId(assetId: number): boolean
 	return type(assetId) == "number" and assetId >= minAssetId
 end
 
@@ -382,7 +382,7 @@ local function checkRateLimit(userId): (boolean, string?)
 	return true, nil
 end
 
-local function validateRate(userId, reject): PromiseObject
+local function validateRate(userId: number, reject: Callback): PromiseObject
 	-- Check the rate limit for this user to prevent repeated calls
 	local ok, err = checkRateLimit(userId)
 
@@ -406,7 +406,7 @@ local function trackReceipt(receiptId, userId, productId)
 end
 
 --[[ Validate Receipt ]]--
-local function validateReceipt(receiptId, userId, productId): (boolean, string?)
+local function validateReceipt(receiptId: string, userId: number, productId: number): (boolean, string?)
 	local receipt = PendingReceipts[receiptId]
 	if not receipt then
 		return false, "Receipt not found"
@@ -431,7 +431,7 @@ local function validateReceipt(receiptId, userId, productId): (boolean, string?)
 	return true, nil
 end
 
-local function attemptPurchaseAsync(userId, productId): PromiseObject
+local function attemptPurchaseAsync(userId: number, productId: number): PromiseObject
 	return Promise.new(function(resolve, reject)
 		-- Validate arguments
 		if not validateUserId(userId) then
@@ -464,7 +464,7 @@ local function attemptPurchaseAsync(userId, productId): PromiseObject
 	end)
 end
 
-local function fireProductPurchased(userId, productId, receiptId)
+local function fireProductPurchased(userId: number, productId: number, receiptId: string)
 	local data = {
 		UserId = userId,
 		ProductId = productId,
@@ -495,7 +495,7 @@ local function fireGamepassAcquired(userId, gamepassId)
 	end
 end
 
-local function firePurchaseComplete(userId, assetId, assetType)
+local function firePurchaseComplete(userId: number, assetId: number, assetType: Enum.AssetType)
 	local data = {
 		UserId = userId,
 		AssetId = assetId,
@@ -511,7 +511,7 @@ local function firePurchaseComplete(userId, assetId, assetType)
 	end
 end
 
-local function processReceipt(receiptInfo): Enum.ProductPurchaseDecision
+local function processReceipt(receiptInfo: any): Enum.ProductPurchaseDecision
 	local purchaseId = receiptInfo.PurchaseId
 	local userId = receiptInfo.PlayerId
 	local productId = receiptInfo.ProductId
