@@ -236,7 +236,6 @@ Prompts a Developer Product purchase.
 |------|------|-------------|
 | `userId` | `number` | Purchasing player. |
 | `productId` | `number` | Developer Product ID. |
-| `expectedPrice` | `number?` | Optional price validation. |
 
 ### Returns
 
