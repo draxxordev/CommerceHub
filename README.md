@@ -6,17 +6,19 @@ CommerceHub goes past simple purchase prompts by including built-in validation, 
 
 ## Features
 
-*  Gamepass & Developer Product purchase wrappers
-*  Built-in gamepass gifting system
-*  Promise-based asynchronous API
-*  Signal & callback support
-*  Product information and price caching
-*  User, asset, and receipt validation
-*  Configurable rate limiting
-*  Purchase ticket tracking
-*  Automatic cleanup and lifecycle management
-*  Regional price support
-*  Clean, developer-friendly API
+- Gamepass purchasing
+- Developer Product purchasing
+- Receipt processing
+- Product handlers
+- Gamepass gifting
+- Promise workflows
+- Signal workflows
+- Callback workflows
+- Marketplace caching
+- Rate limiting
+- Purchase tracking
+- ProfileStore persistence
+- Automatic cleanup
 
 ## Example
 
