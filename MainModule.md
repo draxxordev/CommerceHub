@@ -1,5 +1,12 @@
---[[## IF YOU COPY AND PASTE, BE SURE TO INCLUDE THE DEPENDENCIES]]--
+## Main Code
 
+---
+
+##IF YOU COPY AND PASTE, BE SURE TO INCLUDE THE DEPENDENCIES
+
+---
+
+```lua
 --[[ CommerceHub.lua
 
 	A wrapper around Roblox's Default `MarketplaceService`, designed to simplify
@@ -1279,3 +1286,4 @@ end
 
 --// Main
 return CommerceHub
+```
