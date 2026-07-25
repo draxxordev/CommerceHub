@@ -170,6 +170,8 @@ Checks whether a player owns a specific product.
 
 ---
 
+RIGHT HERE!!!
+
 ## `:GetUserGamepassesAsync(userId)`
 
 Returns every Gamepass owned by a player.
