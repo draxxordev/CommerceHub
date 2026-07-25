@@ -55,7 +55,7 @@
 	--// Q & A
 
 	Q. Why CommerceHub?
-	A. Instead of interacting directly with `MarketplaceService` every time, CommerceHub provides a centralized API that handles common concerns automatically, allowing you to focus on building your game rather than rewriting commerce logic.
+	A. Instead of interacting directly with `MarketplaceService` every time, CommerceHub provides a centralized API that handles common 	concerns automatically, allowing you to focus on building your game rather than rewriting commerce logic.
 
 	---
 
@@ -109,6 +109,8 @@
 
 	GitHub (repository):
 	https://github.com/draxxordev/CommerceHub
+
+	Version 1.1.0
 
 	By @Draxxor
 ]]--
