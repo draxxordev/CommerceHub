@@ -26,13 +26,15 @@ local CommerceHub = require(path.To.CommerceHub)
 local Commerce = CommerceHub.new()
 Commerce:Init()
 
-Commerce:PromptGamepassPurchaseAsync(player.UserId, GAMEPASS_ID)
-    :andThen(function()
-        print("Purchase prompt opened!")
-    end)
-    :catch(function(err)
-        warn(err)
-    end)
+CentralHub:PromptProductPurchaseAsync(
+		player.UserId,
+		GAMEPASS_ID
+	):andThen(function()
+		print("Purchase prompt opened!")
+	end)
+	:catch(function(err)
+		warn("Purchase prompt failed to open: " .. err)
+	end)
 ```
 
 ## Why CommerceHub?
