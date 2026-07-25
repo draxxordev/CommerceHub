@@ -1,3 +1,5 @@
+## IF YOU COPY AND PASTE, BE SURE TO INCLUDE THE DEPENDENCIES
+
 --[[ CommerceHub.lua
 
 	A wrapper around Roblox's Default `MarketplaceService`, designed to simplify
@@ -78,6 +80,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 
 --// Dependencies
+--//  !! MAKE SURE YOU HAVE THESE !! \\ --
 local ProfileStore = require("@self/ProfileStore")
 local Promise = require("@self/Promise")
 local Signal = require("@self/Signal")
@@ -91,7 +94,7 @@ export type SignalObject = Signal.Signal<Callback>
 export type Ticket = {
 	Info: any,
 	Owners: { number },
-	Job: number,
+	Job: string,
 }
 
 export type PurchaseData = {
@@ -141,6 +144,8 @@ local TicketCounter: number  = 0
 local UserRateLimits: { [number]: RateData } = {}
 
 --// Validation
+local ReceiptHandlers: { [number]: Callback } = {}
+local ProcessedReceipts: { [string]: boolean } = {}
 local PendingReceipts: { [number]: Receipt } = {}
 local ValidatedPurchases: { [string]: boolean } = {}
 
@@ -253,10 +258,10 @@ end
 
 local function validateRate(userId, reject)
 	-- Check the rate limit for this user to prevent repeated calls
-	local allowed, rateLimitErr = checkRateLimit(userId)
-	if not allowed then
-		reject(rateLimitErr)
-		return
+	local ok, err = checkRateLimit(userId)
+
+	if not ok then
+		return Promise.reject(err)
 	end
 end
 
@@ -300,7 +305,7 @@ local function validateReceipt(receiptId, userId, productId)
 	return true, nil
 end
 
-local function attemptPurchaseAsync(userId, productId, quote)
+local function attemptPurchaseAsync(userId, productId)
 	return Promise.new(function(resolve, reject)
 		-- Validate arguments
 		if not validateUserId(userId) then
@@ -322,7 +327,7 @@ local function attemptPurchaseAsync(userId, productId, quote)
 		end
 
 		local success, result = pcall(function()
-			return MarketplaceService:PromptPurchase(player, productId, false, quote)
+			MarketplaceService:PromptProductPurchase(player, productId)
 		end)
 
 		if success then
@@ -380,6 +385,67 @@ local function firePurchaseComplete(userId, assetId, assetType)
 	end
 end
 
+local function processReceipt(receiptInfo)
+	local purchaseId = receiptInfo.PurchaseId
+	local userId = receiptInfo.PlayerId
+	local productId = receiptInfo.ProductId
+
+	-- Already granted
+	if ProcessedReceipts[purchaseId] then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+
+	local player = Players:GetPlayerByUserId(userId)
+
+	-- The player left, retry later
+	if not player then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local handler = ReceiptHandlers[productId]
+
+	if not handler then
+		warn("No receipt handler for product:", productId)
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+
+	local success, err = pcall(function()
+		handler(player, receiptInfo)
+	end)
+
+	if not success then
+		warn("Failed granting product:", productId, err)
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	ProcessedReceipts[purchaseId] = true
+
+	fireProductPurchased(
+		userId,
+		productId,
+		purchaseId
+	)
+
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
+local function setupGamepassListener()
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(
+		function(player, gamepassId, purchased)
+
+			if purchased then
+
+				fireGamepassAcquired(
+					player.UserId,
+					gamepassId
+				)
+
+			end
+		end
+	)
+end
+
 --// Public Functions
 
 local CommerceHub = {}
@@ -423,6 +489,14 @@ end
 	Sets up the modules cleanup automatically
 ]]
 function CommerceHub:Init()
+	--[[ Setup the main gamepass listener
+]]--
+	setupGamepassListener()
+	
+	--[[ Connection to ProcessReceipt
+]]--
+	MarketplaceService.ProcessReceipt = processReceipt
+	
 	--[[ Connection to player join - Load gifts
 	Auto-loads pending gifts when a player joins
 ]]--
@@ -447,10 +521,6 @@ function CommerceHub:Init()
 	Auto-cleanup when the game is closing
 ]]--
 	game:BindToClose(function()
-		if not ProfileStore.IsClosing then
-			ProfileStore.IsClosing = true
-		end
-		
 		self:Destroy()
 	end)
 end
@@ -465,12 +535,12 @@ function CommerceHub:GetProductInfoAsync(assetId)
 		return Promise.reject("Invalid asset ID")
 	end
 
-	if ProductInfoCache then
-		return Promise.resolve(ProductInfoCache)
+	if ProductInfoCache[assetId] then
+		return Promise.resolve(ProductInfoCache[assetId])
 	end
 
 	return getProductInfoAsync(assetId):andThen(function(info)
-		ProductInfoCache = info
+		ProductInfoCache[assetId] = info
 		-- Cache for 5 minutes
 		task.delay(cacheExpiry, function()
 			ProductInfoCache = nil
@@ -614,8 +684,8 @@ end
 	@param expectedPrice: Optional expected price in Robux
 	@return Promise that resolves when purchase is prompted
 ]]--
-function CommerceHub:PromptProductPurchaseAsync(userId, productId, expectedPrice)
-	return attemptPurchaseAsync(userId, productId, expectedPrice and tostring(expectedPrice))
+function CommerceHub:PromptProductPurchaseAsync(userId, productId)
+	return attemptPurchaseAsync(userId, productId)
 end
 
 --[[ PromptGamepassPurchaseAsync
@@ -652,6 +722,24 @@ function CommerceHub:PromptGamepassPurchaseAsync(userId, gamepassId)
 			reject("Failed to prompt gamepass purchase: " .. tostring(result))
 		end
 	end)
+end
+
+--[[  RegisterProductHandler
+	Registers a handler for a product purchase
+	@param productId: The product asset ID
+	@param callback: The handler function to handle the purchase
+]]--
+function CommerceHub:RegisterProductHandler(productId, callback)
+	-- Validate the arguments
+	if not validateAssetId(productId) then
+		error("Invalid product ID")
+	end
+
+	if type(callback) ~= "function" then
+		error("Callback must be a function")
+	end
+
+	ReceiptHandlers[productId] = callback
 end
 
 --[[ GetUserGamepassesAsync
@@ -981,25 +1069,32 @@ end
 	@param userId: The user ID to prompt
 	@param productId: The product asset ID
 	@param onComplete: Callback function(success, userId, productId, error)
-	@return Maid for cleanup
+	@return Promise that resolves on completion
 ]]--
 function CommerceHub:PromptProductPurchaseWithCallback(userId, productId, onComplete)
+	-- Validate parameters
 	if type(onComplete) ~= "function" then
 		error("onComplete must be a function")
 	end
 
-	local maid = Maid.new()
 
-	local promise = self:PromptProductPurchaseAsync(userId, productId)
-
-	promise:andThen(function()
-		fireProductPurchased(userId, productId, nil)
-		onComplete(true, userId, productId)
+	return self:PromptProductPurchaseAsync(
+		userId,
+		productId
+	):andThen(function()
+		onComplete(
+			true,
+			userId,
+			productId
+		)
 	end):catch(function(err)
-		onComplete(false, userId, productId, err)
+		onComplete(
+			false,
+			userId,
+			productId,
+			err
+		)
 	end)
-
-	return maid
 end
 
 --[[ UnlistenToPurchases
@@ -1165,7 +1260,7 @@ function CommerceHub:LoadPlayerGifts(userId)
 		return Promise.reject("Invalid user ID")
 	end
 
-	return CommerceHub:GetPendingGiftsAsync(userId):andThen(function(gifts)
+	return self:GetPendingGiftsAsync(userId):andThen(function(gifts)
 		if #gifts > 0 then
 			for _, gift in ipairs(gifts) do
 				task.defer(function()
