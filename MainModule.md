@@ -169,59 +169,52 @@ export type Gift = {
 	Timestamp: number,
 }
 
-export type CommerceHub = typeof(setmetatable({} :: {
-}, {} :: CommerceHubClass))
-
 export type CommerceHubClass = {
-	__index: CommerceHubClass,
+	Init: (self: CommerceHubClass) -> (),
+	Destroy: (self: CommerceHubClass) -> (),
 
-	new: () -> CommerceHub,
+	GetProductInfoAsync: (self: CommerceHubClass, assetId: number) -> PromiseObject,
+	GetProductPriceAsync: (self: CommerceHubClass, userId: number, productId: number) -> PromiseObject,
 
-	Init: (self: CommerceHub) -> (),
-	Destroy: (self: CommerceHub) -> (),
+	IsGamepassOwnedAsync: (self: CommerceHubClass, userId: number, gamepassId: number) -> PromiseObject,
+	IsProductOwnedAsync: (self: CommerceHubClass, userId: number, productId: number) -> PromiseObject,
+	GetUserGamepassesAsync: (self: CommerceHubClass, userId: number, gamepassIds: {number}) -> PromiseObject,
 
-	GetProductInfoAsync: (self: CommerceHub, assetId: number) -> PromiseObject,
-	GetProductPriceAsync: (self: CommerceHub, userId: number, productId: number) -> PromiseObject,
+	PromptGamepassPurchaseAsync: (self: CommerceHubClass, userId: number, gamepassId: number) -> PromiseObject,
+	PromptProductPurchaseAsync: (self: CommerceHubClass, userId: number, productId: number) -> PromiseObject,
 
-	IsGamepassOwnedAsync: (self: CommerceHub, userId: number, gamepassId: number) -> PromiseObject,
-	IsProductOwnedAsync: (self: CommerceHub, userId: number, productId: number) -> PromiseObject,
-	GetUserGamepassesAsync: (self: CommerceHub, userId: number, gamepassIds: {number}) -> PromiseObject,
+	GiftGamepassAsync: (self: CommerceHubClass, fromUserId: number, toUserId: number, gamepassId: number) -> PromiseObject,
+	GetPendingGiftsAsync: (self: CommerceHubClass, userId: number) -> PromiseObject,
+	ClaimGiftAsync: (self: CommerceHubClass, userId: number, giftIndex: number) -> PromiseObject,
+	LoadPlayerGifts: (self: CommerceHubClass, userId: number) -> PromiseObject,
 
-	PromptGamepassPurchaseAsync: (self: CommerceHub, userId: number, gamepassId: number) -> PromiseObject,
-	PromptProductPurchaseAsync: (self: CommerceHub, userId: number, productId: number) -> PromiseObject,
+	RegisterProductHandler: (self: CommerceHubClass, productId: number, callback: Callback) -> (),
 
-	GiftGamepassAsync: (self: CommerceHub, fromUserId: number, toUserId: number, gamepassId: number) -> PromiseObject,
-	GetPendingGiftsAsync: (self: CommerceHub, userId: number) -> PromiseObject,
-	ClaimGiftAsync: (self: CommerceHub, userId: number, giftIndex: number) -> PromiseObject,
-	LoadPlayerGifts: (self: CommerceHub, userId: number) -> PromiseObject,
+	CreatePurchaseTicket: (self: CommerceHubClass, userId: number, info: any) -> Ticket,
+	GetTicket: (self: CommerceHubClass, jobId: string) -> Ticket?,
 
-	RegisterProductHandler: (self: CommerceHub, productId: number, callback: Callback) -> (),
+	ValidatePurchaseReceipt: (self: CommerceHubClass, receiptId: string, userId: number, productId: number) -> PromiseObject,
 
-	CreatePurchaseTicket: (self: CommerceHub, userId: number, info: any) -> Ticket,
-	GetTicket: (self: CommerceHub, jobId: string) -> Ticket?,
+	ClearCache: (self: CommerceHubClass) -> (),
+	Cleanup: (self: CommerceHubClass, userId: number) -> (),
 
-	ValidatePurchaseReceipt: (self: CommerceHub, receiptId: string, userId: number, productId: number) -> PromiseObject,
+	ListenToPurchases: (self: CommerceHubClass, callback: Callback) -> any,
+	ListenToGamepasses: (self: CommerceHubClass, callback: Callback) -> any,
+	ListenToProductPurchases: (self: CommerceHubClass, callback: Callback) -> any,
+	ListenToGifts: (self: CommerceHubClass, userId: number, callback: Callback) -> any,
 
-	ClearCache: (self: CommerceHub) -> (),
-	Cleanup: (self: CommerceHub, userId: number) -> (),
+	UnlistenToPurchases: (self: CommerceHubClass, callback: Callback) -> (),
+	UnlistenToGamepasses: (self: CommerceHubClass, callback: Callback) -> (),
+	UnlistenToProductPurchases: (self: CommerceHubClass, callback: Callback) -> (),
+	ClearAllListeners: (self: CommerceHubClass) -> (),
 
-	ListenToPurchases: (self: CommerceHub, callback: Callback) -> any,
-	ListenToGamepasses: (self: CommerceHub, callback: Callback) -> any,
-	ListenToProductPurchases: (self: CommerceHub, callback: Callback) -> any,
-	ListenToGifts: (self: CommerceHub, userId: number, callback: Callback) -> any,
+	OnPurchaseComplete: (self: CommerceHubClass) -> SignalObject,
+	OnGamepassAcquired: (self: CommerceHubClass) -> SignalObject,
+	OnProductPurchased: (self: CommerceHubClass) -> SignalObject,
+	OnGiftReceived: (self: CommerceHubClass) -> SignalObject,
 
-	UnlistenToPurchases: (self: CommerceHub, callback: Callback) -> (),
-	UnlistenToGamepasses: (self: CommerceHub, callback: Callback) -> (),
-	UnlistenToProductPurchases: (self: CommerceHub, callback: Callback) -> (),
-	ClearAllListeners: (self: CommerceHub) -> (),
-
-	OnPurchaseComplete: (self: CommerceHub) -> SignalObject,
-	OnGamepassAcquired: (self: CommerceHub) -> SignalObject,
-	OnProductPurchased: (self: CommerceHub) -> SignalObject,
-	OnGiftReceived: (self: CommerceHub) -> SignalObject,
-
-	PromptGamepassPurchaseWithCallback: (self: CommerceHub, userId: number, gamepassId: number, onComplete: Callback) -> MaidObject,
-	PromptProductPurchaseWithCallback: (self: CommerceHub, userId: number, productId: number, onComplete: Callback) -> PromiseObject,
+	PromptGamepassPurchaseWithCallback: (self: CommerceHubClass, userId: number, gamepassId: number, onComplete: Callback) -> MaidObject,
+	PromptProductPurchaseWithCallback: (self: CommerceHubClass, userId: number, productId: number, onComplete: Callback) -> PromiseObject,
 }
 
 --// Classes
